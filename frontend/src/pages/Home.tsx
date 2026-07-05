@@ -1,0 +1,545 @@
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Play, Users, ThumbsUp, Settings, Globe } from 'lucide-react';
+import api from '../utils/api';
+import SearchBar from '../components/SearchBar';
+
+interface Movie {
+  _id: string;
+  title: string;
+  description: string;
+  releaseYear: number;
+  genres: string[];
+  ageRating: string;
+  duration: number;
+  thumbnail: string;
+  poster: string;
+  videoUrl: string;
+  cast: string[];
+  likes: number;
+  isOriginal: boolean;
+  isTrending: boolean;
+  featured: boolean;
+}
+
+interface Profile {
+  id: string;
+  name: string;
+  avatar: string;
+  isKids: boolean;
+}
+
+export const Home: React.FC = () => {
+  const navigate = useNavigate();
+
+  const [featured, setFeatured] = useState<Movie | null>(null);
+  const [originals, setOriginals] = useState<Movie[]>([]);
+  const [trending, setTrending] = useState<Movie[]>([]);
+  const [allMovies, setAllMovies] = useState<Movie[]>([]);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Search States
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Movie[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+
+  // Watch Party States
+  const [showPartyModal, setShowPartyModal] = useState(false);
+  const [selectedMovieForParty, setSelectedMovieForParty] = useState<Movie | null>(null);
+  const [partyCode, setPartyCode] = useState<string | null>(null);
+  const [partyLoading, setPartyLoading] = useState(false);
+  const [joinCode, setJoinCode] = useState('');
+
+  const activeProfileId = localStorage.getItem('agflix_active_profile_id');
+
+  const getAvatarUrl = (avatar: string | undefined) => {
+    if (!avatar) return 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80';
+    if (avatar.startsWith('http')) return avatar;
+    
+    const mocks: Record<string, string> = {
+      'avatar_purple': 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
+      'avatar_cyan': 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=100&auto=format&fit=crop&q=80',
+      'avatar_pink': 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&auto=format&fit=crop&q=80',
+      'avatar_lime': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=80',
+    };
+    return mocks[avatar] || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80';
+  };
+
+  useEffect(() => {
+    // 1. Force profile selection redirect if missing
+    if (!activeProfileId) {
+      navigate('/profiles');
+      return;
+    }
+
+    const loadHomeData = async () => {
+      setLoading(true);
+      try {
+        // Fetch current profile context
+        const profileRes = await api.get('/profiles');
+        if (profileRes.data?.success) {
+          const current = profileRes.data.profiles.find((p: Profile) => p.id === activeProfileId);
+          if (!current) {
+            navigate('/profiles');
+            return;
+          }
+          setProfile(current);
+        }
+
+        // Fetch movies database
+        const moviesRes = await api.get('/movies');
+        if (moviesRes.data?.success) {
+          const moviesList: Movie[] = moviesRes.data.movies;
+          setAllMovies(moviesList);
+
+          // Categorize local records
+          const featuredMovie = moviesList.find((m) => m.featured) || moviesList[0];
+          setFeatured(featuredMovie || null);
+
+          setOriginals(moviesList.filter((m) => m.isOriginal));
+          setTrending(moviesList.filter((m) => m.isTrending));
+        }
+      } catch (err: any) {
+        setError('Failed to fetch media catalog. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadHomeData();
+  }, [activeProfileId, navigate]);
+
+  const handleSearch = async (query: string) => {
+    setSearchQuery(query);
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    setSearchLoading(true);
+    try {
+      const res = await api.get(`/movies?search=${encodeURIComponent(query)}`);
+      if (res.data?.success) {
+        setSearchResults(res.data.movies);
+      }
+    } catch (err) {
+      console.error('Failed to perform catalog search');
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  const handleLikeMovie = async (movieId: string, isFeaturedCard = false) => {
+    try {
+      const res = await api.post(`/movies/${movieId}/like`);
+      if (res.data?.success) {
+        // Update local views state
+        if (isFeaturedCard && featured) {
+          setFeatured({ ...featured, likes: res.data.likes });
+        }
+        setAllMovies((prev) =>
+          prev.map((m) => (m._id === movieId ? { ...m, likes: res.data.likes } : m))
+        );
+      }
+    } catch (err) {}
+  };
+
+  const handleCreateWatchParty = async (movie: Movie) => {
+    setPartyLoading(true);
+    setPartyCode(null);
+    try {
+      const res = await api.post('/movies/watch-party', { movieId: movie._id });
+      if (res.data?.success) {
+        setPartyCode(res.data.partyCode);
+        setSelectedMovieForParty(movie);
+        setShowPartyModal(true);
+      }
+    } catch (err) {
+      alert('Failed to generate watch party room.');
+    } finally {
+      setPartyLoading(false);
+    }
+  };
+
+  const handleJoinWatchParty = () => {
+    if (!joinCode.trim()) return;
+    navigate(`/watch-party/${joinCode.trim().toUpperCase()}`);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-brand-dark flex flex-col justify-center items-center">
+        <div className="w-12 h-12 border-4 border-brand-primary border-t-transparent rounded-full animate-spin mb-4" />
+        <span className="text-brand-textMuted text-sm font-semibold">Opening Cinematic Catalog...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-brand-dark flex flex-col justify-center items-center text-center px-4">
+        <p className="text-brand-accent mb-4 text-lg font-bold">{error}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-6 py-3 rounded-lg bg-brand-surface border border-white/10 text-white font-bold"
+        >
+          Retry Load
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-brand-dark pb-24 text-white relative">
+      
+      {/* Header bar */}
+      <header className="fixed top-0 inset-x-0 h-20 bg-gradient-to-b from-brand-dark to-transparent flex items-center justify-between px-8 z-30 transition-all duration-300 hover:bg-brand-dark/95">
+        <div className="flex items-center gap-10">
+          <span 
+            onClick={() => navigate('/')}
+            className="text-3xl font-black tracking-wider bg-gradient-to-r from-brand-primary via-brand-secondary to-brand-accent bg-clip-text text-transparent cursor-pointer"
+          >
+            AgFlix
+          </span>
+          <nav className="hidden md:flex gap-6 text-sm font-bold text-brand-textMuted">
+            <span className="text-white cursor-pointer" onClick={() => handleSearch('')}>Home</span>
+            <span className="hover:text-white transition-colors cursor-pointer" onClick={() => navigate('/plans')}>Upgrade Plan</span>
+          </nav>
+        </div>
+
+        {/* Profile and Settings actions */}
+        <div className="flex items-center gap-5">
+          {/* Debounced Search Input */}
+          <SearchBar onSearch={handleSearch} />
+
+          {/* Join Party input */}
+          <div className="hidden sm:flex items-center bg-white/5 border border-white/10 rounded-full px-3 py-1 text-xs">
+            <input
+              type="text"
+              placeholder="Enter Party Code..."
+              value={joinCode}
+              onChange={(e) => setJoinCode(e.target.value)}
+              className="bg-transparent outline-none pr-2 uppercase text-center w-28 text-white font-bold"
+            />
+            <button
+              onClick={handleJoinWatchParty}
+              className="bg-brand-primary px-3 py-1 rounded-full text-[10px] font-bold hover:bg-brand-primaryHover transition-colors"
+            >
+              JOIN
+            </button>
+          </div>
+
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="p-2 rounded-full bg-white/5 border border-white/10 text-brand-textMuted hover:text-white transition-all"
+            title="Account Settings"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
+          
+          <button
+            onClick={() => navigate('/profiles')}
+            className="flex items-center gap-2 hover:opacity-90"
+          >
+            <img
+              src={getAvatarUrl(profile?.avatar)}
+              alt="Profile"
+              className="w-9 h-9 rounded-md object-cover border border-brand-primary/40 shadow-neon shadow-brand-primary/10"
+            />
+            <span className="hidden md:inline text-sm font-bold">{profile?.name}</span>
+          </button>
+        </div>
+      </header>
+
+      {/* RENDER DYNAMIC SEARCH VIEW IF QUERY POPULATED */}
+      {searchQuery ? (
+        <section className="px-8 md:px-16 pt-28 min-h-[70vh] z-10 relative">
+          <div className="mb-8">
+            <h2 className="text-xl md:text-3xl font-extrabold text-white">Search Results for "{searchQuery}"</h2>
+            <p className="text-xs text-brand-textMuted mt-1">Showing relevance scored matches from catalog index.</p>
+          </div>
+
+          {searchLoading ? (
+            <div className="flex justify-center items-center py-20">
+              <div className="w-10 h-10 border-4 border-brand-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : searchResults.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+              {searchResults.map((movie) => (
+                <div
+                  key={movie._id}
+                  className="rounded-xl overflow-hidden glass-card border border-white/5 group hover:border-brand-primary/40 transition-all duration-300 relative"
+                >
+                  <div className="relative h-36 w-full overflow-hidden">
+                    <img
+                      src={movie.thumbnail}
+                      alt={movie.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                    <div className="absolute inset-0 bg-brand-dark/50 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-3 transition-opacity duration-300 z-10">
+                      <button
+                        onClick={() => navigate(`/watch/${movie._id}`)}
+                        className="p-3 rounded-full bg-white text-brand-dark hover:scale-110 transition-transform"
+                        title="Play"
+                      >
+                        <Play className="w-4 h-4 fill-current" />
+                      </button>
+                      <button
+                        onClick={() => handleCreateWatchParty(movie)}
+                        className="p-3 rounded-full bg-brand-primary text-white hover:scale-110 transition-transform shadow-neon"
+                        title="Party"
+                      >
+                        <Users className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleLikeMovie(movie._id)}
+                        className="p-3 rounded-full bg-brand-surface border border-white/10 hover:scale-110 transition-transform text-white"
+                        title="Like"
+                      >
+                        <ThumbsUp className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="p-4">
+                    <h4 className="font-bold text-sm truncate text-white">{movie.title}</h4>
+                    <div className="flex items-center gap-2 text-[10px] text-brand-textMuted mt-1 font-semibold">
+                      <span className="text-brand-secondary">{movie.releaseYear}</span>
+                      <span className="px-1 py-0.2 rounded border border-white/15 scale-90">{movie.ageRating}</span>
+                      <span>{movie.duration}m</span>
+                    </div>
+                    <p className="text-[10px] text-brand-textMuted mt-1.5 truncate">
+                      {movie.genres.join(' | ')}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-20 bg-brand-surfaceMuted/20 border border-white/5 rounded-2xl">
+              <p className="text-brand-textMuted text-sm">No titles match your query. Try searching for genres (e.g. Sci-Fi) or other key terms.</p>
+            </div>
+          )}
+        </section>
+      ) : (
+        <>
+          {/* FEATURED BANNER */}
+          {featured && (
+            <section className="relative w-full h-[85vh] flex items-center justify-start px-8 md:px-16 overflow-hidden">
+              {/* Cover Poster */}
+              <div className="absolute inset-0 z-0">
+                <img
+                  src={featured.poster}
+                  alt={featured.title}
+                  className="w-full h-full object-cover filter brightness-[0.45]"
+                />
+                <div className="absolute inset-0 bg-gradient-to-r from-brand-dark via-transparent to-transparent" />
+                <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-brand-dark to-transparent" />
+              </div>
+
+              {/* Banner Meta details */}
+              <div className="max-w-2xl z-10 relative pt-20">
+                {featured.isOriginal && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded bg-brand-primary/20 border border-brand-primary/30 text-[10px] font-black tracking-wider text-brand-primary uppercase mb-4">
+                    <Globe className="w-3 h-3" /> AgFlix Original Series
+                  </span>
+                )}
+                <h1 className="text-4xl md:text-6xl font-black mb-4 leading-tight filter drop-shadow-md">
+                  {featured.title}
+                </h1>
+                <div className="flex items-center gap-4 text-xs md:text-sm text-brand-textMuted mb-6 font-bold">
+                  <span className="text-brand-secondary">{featured.releaseYear}</span>
+                  <span className="px-1.5 py-0.5 rounded border border-white/20 text-[10px] uppercase">{featured.ageRating}</span>
+                  <span>{featured.duration} mins</span>
+                  <span className="text-white/80">{featured.genres.join(' &bull; ')}</span>
+                </div>
+                <p className="text-sm md:text-base text-brand-textMuted leading-relaxed mb-8">
+                  {featured.description}
+                </p>
+
+                <div className="flex flex-wrap gap-4">
+                  <button
+                    onClick={() => navigate(`/watch/${featured._id}`)}
+                    className="px-8 py-3.5 rounded-lg bg-white hover:bg-white/90 text-brand-dark font-black text-sm transition-all flex items-center gap-2.5 shadow-lg"
+                  >
+                    <Play className="w-5 h-5 fill-current" /> Play
+                  </button>
+                  <button
+                    onClick={() => handleCreateWatchParty(featured)}
+                    disabled={partyLoading}
+                    className="px-6 py-3.5 rounded-lg bg-brand-surfaceMuted border border-white/10 hover:border-brand-primary/30 text-white font-bold text-sm transition-all flex items-center gap-2.5"
+                  >
+                    <Users className="w-5 h-5" /> Host Watch Party
+                  </button>
+                  <button
+                    onClick={() => handleLikeMovie(featured._id, true)}
+                    className="p-3.5 rounded-lg bg-brand-surfaceMuted border border-white/10 hover:bg-white/15 text-white transition-colors"
+                    title="Like film"
+                  >
+                    <ThumbsUp className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* CATALOG ROWS */}
+          <div className="px-8 md:px-16 mt-6 space-y-12">
+            {/* ROW 1: ORIGINALS */}
+            {originals.length > 0 && (
+              <MovieRow
+                title="AgFlix Original Series"
+                movies={originals}
+                onPlay={(id) => navigate(`/watch/${id}`)}
+                onHostParty={handleCreateWatchParty}
+                onLike={handleLikeMovie}
+              />
+            )}
+
+            {/* ROW 2: TRENDING */}
+            {trending.length > 0 && (
+              <MovieRow
+                title="Trending Now"
+                movies={trending}
+                onPlay={(id) => navigate(`/watch/${id}`)}
+                onHostParty={handleCreateWatchParty}
+                onLike={handleLikeMovie}
+              />
+            )}
+
+            {/* ROW 3: ALL MOVIES */}
+            {allMovies.length > 0 && (
+              <MovieRow
+                title="Popular Releases"
+                movies={allMovies}
+                onPlay={(id) => navigate(`/watch/${id}`)}
+                onHostParty={handleCreateWatchParty}
+                onLike={handleLikeMovie}
+              />
+            )}
+          </div>
+        </>
+      )}
+
+      {/* WATCH PARTY READY MODAL */}
+      {showPartyModal && selectedMovieForParty && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-brand-dark/90 backdrop-blur-md p-4">
+          <div className="max-w-md w-full rounded-2xl glass-card p-8 border border-brand-primary/20 text-center">
+            <h3 className="text-2xl font-black text-white mb-2">Watch Party Created!</h3>
+            <p className="text-xs text-brand-textMuted mb-6">
+              Share the invitation code below with your friends so they can sync up with you.
+            </p>
+            
+            <div className="bg-brand-surface border border-white/5 p-4 rounded-xl mb-6 text-center font-mono text-3xl font-black tracking-widest text-brand-secondary">
+              {partyCode}
+            </div>
+
+            <p className="text-xs text-brand-textMuted mb-8 uppercase font-bold">
+              Streaming: {selectedMovieForParty.title}
+            </p>
+
+            <div className="flex gap-4">
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(partyCode || '');
+                  alert('Code copied to clipboard!');
+                }}
+                className="flex-grow py-3 rounded-lg bg-brand-surface border border-white/10 hover:border-white/20 font-bold transition-all text-sm"
+              >
+                Copy Code
+              </button>
+              <button
+                onClick={() => navigate(`/watch-party/${partyCode}`)}
+                className="flex-grow py-3 rounded-lg bg-brand-primary hover:bg-brand-primaryHover font-bold text-white shadow-neon transition-all text-sm"
+              >
+                Join Room
+              </button>
+            </div>
+            
+            <button
+              onClick={() => {
+                setShowPartyModal(false);
+                setPartyCode(null);
+              }}
+              className="mt-6 text-xs text-brand-textMuted hover:text-white font-medium"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Internal reusable Row Component to scale layouts cleanly
+interface MovieRowProps {
+  title: string;
+  movies: Movie[];
+  onPlay: (id: string) => void;
+  onHostParty: (movie: Movie) => void;
+  onLike: (id: string) => void;
+}
+
+const MovieRow: React.FC<MovieRowProps> = ({ title, movies, onPlay, onHostParty, onLike }) => {
+  return (
+    <div className="space-y-4">
+      <h2 className="text-xl md:text-2xl font-black tracking-wide">{title}</h2>
+      <div className="flex gap-5 overflow-x-auto pb-4 scrollbar-hide scroll-smooth">
+        {movies.map((movie) => (
+          <div
+            key={movie._id}
+            className="flex-shrink-0 w-64 rounded-xl overflow-hidden glass-card border border-white/5 group hover:border-brand-primary/40 transition-all duration-300 relative"
+          >
+            <div className="relative h-36 w-full overflow-hidden">
+              <img
+                src={movie.thumbnail}
+                alt={movie.title}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              />
+              <div className="absolute inset-0 bg-brand-dark/50 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-3 transition-opacity duration-300 z-10">
+                <button
+                  onClick={() => onPlay(movie._id)}
+                  className="p-3 rounded-full bg-white text-brand-dark hover:scale-110 transition-transform"
+                  title="Play"
+                >
+                  <Play className="w-4 h-4 fill-current" />
+                </button>
+                <button
+                  onClick={() => onHostParty(movie)}
+                  className="p-3 rounded-full bg-brand-primary text-white hover:scale-110 transition-transform shadow-neon"
+                  title="Party"
+                >
+                  <Users className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => onLike(movie._id)}
+                  className="p-3 rounded-full bg-brand-surface border border-white/10 hover:scale-110 transition-transform text-white"
+                  title="Like"
+                >
+                  <ThumbsUp className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-4">
+              <h4 className="font-bold text-sm truncate text-white">{movie.title}</h4>
+              <div className="flex items-center gap-2 text-[10px] text-brand-textMuted mt-1 font-semibold">
+                <span className="text-brand-secondary">{movie.releaseYear}</span>
+                <span className="px-1 py-0.2 rounded border border-white/15 scale-90">{movie.ageRating}</span>
+                <span>{movie.duration}m</span>
+              </div>
+              <p className="text-[10px] text-brand-textMuted mt-1.5 truncate">
+                {movie.genres.join(' | ')}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+export default Home;

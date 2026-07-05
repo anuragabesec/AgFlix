@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# Production builds
+dist/
+build/
+
+# Local databases
+mongodb_data/
+
+# Environment variables
+.env
+*.env.local
+
+# Logs
+logs
+*.log
+
+# System Files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Deployed Uploads Directories (exclude large files)
+backend/uploads/videos/*
+!backend/uploads/videos/.gitkeep
+backend/uploads/posters/*
+!backend/uploads/posters/.gitkeep
+backend/uploads/thumbnails/*
+!backend/uploads/thumbnails/.gitkeep

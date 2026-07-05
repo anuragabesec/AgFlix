@@ -1,0 +1,64 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-brand-dark text-brand-text font-sans antialiased overflow-x-hidden;
+    background-image: radial-gradient(circle at 50% -20%, #17123A 0%, #05070F 70%);
+    min-height: 100vh;
+  }
+}
+
+@layer utilities {
+  /* Premium Glassmorphism Cards */
+  .glass-card {
+    background: rgba(15, 18, 33, 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+  }
+
+  .glass-card-hover {
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  }
+
+  .glass-card-hover:hover {
+    border-color: rgba(138, 63, 252, 0.4);
+    box-shadow: 0 0 20px rgba(138, 63, 252, 0.25), 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+    transform: translateY(-2px);
+  }
+
+  /* Custom Premium Scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #05070F;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #1F243E;
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #8A3FFC;
+    box-shadow: 0 0 10px #8A3FFC;
+  }
+
+  /* Hide scrollbar for layout rows but allow scrolling */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
