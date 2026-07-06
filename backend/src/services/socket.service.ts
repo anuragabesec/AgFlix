@@ -71,6 +71,17 @@ export class SocketService {
         logger.debug(`[Chat] Party ${partyCode} msg from ${username}: ${text}`);
       });
 
+      // 5.5 Watch Party real-time floating reactions
+      socket.on('party-reaction', ({ partyCode, emoji, username }) => {
+        const roomName = `party_${partyCode.toUpperCase()}`;
+        this.io?.to(roomName).emit('party-reaction', {
+          emoji,
+          username,
+          timestamp: new Date().toISOString(),
+        });
+        logger.debug(`[Reaction] Party ${partyCode} emoji from ${username}: ${emoji}`);
+      });
+
       // 6. Leave room explicitly
       socket.on('leave-party', ({ partyCode, username, userId }) => {
         const roomName = `party_${partyCode.toUpperCase()}`;

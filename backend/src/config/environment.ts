@@ -43,6 +43,9 @@ const environmentSchema = z.object({
   
   // Pipedream Webhook
   PIPEDREAM_WEBHOOK_URL: z.string().url().optional().or(z.literal('')),
+
+  // Gemini AI Key
+  GEMINI_API_KEY: z.string().optional().or(z.literal('')),
 });
 
 export type Environment = z.infer<typeof environmentSchema>;

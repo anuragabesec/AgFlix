@@ -13,6 +13,7 @@ import profileRoutes from './routes/profile.routes';
 import paymentRoutes from './routes/payment.routes';
 import movieRoutes from './routes/movie.routes';
 import visitRoutes from './routes/visit.routes';
+import aiRoutes from './routes/ai.routes';
 
 const app: Express = express();
 
@@ -87,6 +88,7 @@ app.use('/api/v1/profiles', profileRoutes);
 app.use('/api/v1/payments', paymentRoutes);
 app.use('/api/v1/movies', movieRoutes);
 app.use('/api/v1/visits', visitRoutes);
+app.use('/api/v1/ai', aiRoutes);
 
 // Mock/Default API root check
 app.get('/api/v1', (req: Request, res: Response) => {
