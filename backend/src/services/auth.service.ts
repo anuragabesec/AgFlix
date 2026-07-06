@@ -310,6 +310,10 @@ export class AuthService {
     ip: string,
     userAgent?: string
   ): Promise<{ accessToken: string; refreshToken: string }> {
+    if (!refreshToken) {
+      throw new UnauthorizedError('Session expired. Please log in again.');
+    }
+
     // 1. Hash refresh token to match database
     const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
 
