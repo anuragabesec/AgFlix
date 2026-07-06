@@ -100,7 +100,7 @@ export class MailService {
   private async sendMail(options: { to: string; subject: string; text: string; html: string }): Promise<void> {
     if (env.PLUNK_API_KEY) {
       try {
-        const response = await fetch('https://api.useplunk.com/v1/send', {
+        const response = await fetch('https://next-api.useplunk.com/v1/send', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${env.PLUNK_API_KEY}`,
