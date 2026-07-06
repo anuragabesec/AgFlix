@@ -31,6 +31,9 @@ const environmentSchema = z.object({
   STRIPE_WEBHOOK_SECRET: z.string().optional().or(z.literal('')),
   RAZORPAY_KEY_ID: z.string().optional().or(z.literal('')),
   RAZORPAY_KEY_SECRET: z.string().optional().or(z.literal('')),
+  
+  // Resend API
+  RESEND_API_KEY: z.string().optional().or(z.literal('')),
 });
 
 export type Environment = z.infer<typeof environmentSchema>;
