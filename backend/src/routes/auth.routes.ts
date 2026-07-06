@@ -85,4 +85,30 @@ router.delete(
   authController.deleteAllDevices
 );
 
+// Secure Password-Protected Database Wipe Route (For Testing Phase)
+router.get('/wipe-atlas-now-securely', async (req: any, res: any) => {
+  const { secret } = req.query;
+  if (secret !== 'Anurag1602') {
+    return res.status(403).json({ success: false, error: 'Unauthorized' });
+  }
+  try {
+    const mongoose = require('mongoose');
+    const db = mongoose.connection.db;
+    const collections = ['users', 'profiles', 'otps', 'subscriptions', 'sessions', 'auditlogs'];
+    const results: string[] = [];
+    for (const name of collections) {
+      const count = await db.collection(name).countDocuments({});
+      if (count > 0) {
+        await db.collection(name).deleteMany({});
+        results.push(`Cleared ${count} from ${name}`);
+      } else {
+        results.push(`${name} was already empty`);
+      }
+    }
+    res.status(200).json({ success: true, results });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 export default router;
