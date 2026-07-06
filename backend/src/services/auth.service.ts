@@ -67,8 +67,10 @@ export class AuthService {
       attempts: 0,
     });
 
-    // 5. Send OTP via Email
-    await this.mailService.sendOtpEmail(email, otpCode, 'signup');
+    // 5. Send OTP via Email (asynchronously in background to avoid blocking request)
+    this.mailService.sendOtpEmail(email, otpCode, 'signup').catch((err) => {
+      logger.error('Background SMTP signup dispatch failed:', err);
+    });
 
     // 6. Log Audit Event
     await AuditLog.create({
@@ -239,7 +241,9 @@ export class AuthService {
         expiresAt: new Date(Date.now() + 5 * 60 * 1000),
         attempts: 0,
       });
-      await this.mailService.sendOtpEmail(user.email, otpCode, 'signup');
+      this.mailService.sendOtpEmail(user.email, otpCode, 'signup').catch((err) => {
+        logger.error('Background SMTP login verification dispatch failed:', err);
+      });
 
       throw new ForbiddenError('Your email is not verified. A verification code has been sent.');
     }
@@ -253,14 +257,16 @@ export class AuthService {
     const location = 'Local Test Location';
 
     if (!existingSession) {
-      // Email Notification
-      await this.mailService.sendNewDeviceNotification(
+      // Email Notification (asynchronously in background)
+      this.mailService.sendNewDeviceNotification(
         user.email,
         ip,
         browser || 'Unknown Browser',
         os || 'Unknown OS',
         location
-      );
+      ).catch((err) => {
+        logger.error('Background SMTP device alert dispatch failed:', err);
+      });
     } else {
       // Revoke older session on this device
       await existingSession.deleteOne();
@@ -416,7 +422,9 @@ export class AuthService {
       attempts: 0,
     });
 
-    await this.mailService.sendOtpEmail(email, otpCode, 'password_reset');
+    this.mailService.sendOtpEmail(email, otpCode, 'password_reset').catch((err) => {
+      logger.error('Background SMTP reset dispatch failed:', err);
+    });
 
     await AuditLog.create({
       userId: user._id,
