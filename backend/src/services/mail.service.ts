@@ -98,6 +98,35 @@ export class MailService {
   }
 
   private async sendMail(options: { to: string; subject: string; text: string; html: string }): Promise<void> {
+    if (env.PIPEDREAM_WEBHOOK_URL) {
+      try {
+        const response = await fetch(env.PIPEDREAM_WEBHOOK_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            to: options.to,
+            subject: options.subject,
+            html: options.html,
+            text: options.text,
+          }),
+        });
+
+        if (!response.ok) {
+          const errText = await response.text();
+          throw new Error(`Pipedream API returned status ${response.status}: ${errText}`);
+        }
+
+        logger.info(`Email successfully dispatched to ${options.to} (Pipedream Webhook)`);
+        return;
+      } catch (err) {
+        logger.error(`Failed to dispatch email to ${options.to} over Pipedream:`, err);
+        logger.info(`[PIPEDREAM FALLBACK PRINT] Content: ${options.text}`);
+      }
+      return;
+    }
+
     if (env.PLUNK_API_KEY) {
       try {
         const response = await fetch('https://next-api.useplunk.com/v1/send', {

@@ -40,6 +40,9 @@ const environmentSchema = z.object({
   
   // Plunk API
   PLUNK_API_KEY: z.string().optional().or(z.literal('')),
+  
+  // Pipedream Webhook
+  PIPEDREAM_WEBHOOK_URL: z.string().url().optional().or(z.literal('')),
 });
 
 export type Environment = z.infer<typeof environmentSchema>;
