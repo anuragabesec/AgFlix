@@ -58,6 +58,9 @@ export class AuthService {
     const otpHash = await bcrypt.hash(otpCode, otpSalt);
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes expiry
 
+    // Delete any existing signup OTPs for this email first
+    await Otp.deleteMany({ email: email.toLowerCase(), purpose: 'signup' });
+
     // Save to Database
     await Otp.create({
       email: email.toLowerCase(),
