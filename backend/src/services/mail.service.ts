@@ -134,6 +134,7 @@ export class MailService {
         logger.error(`Failed to dispatch email to ${options.to} over Brevo HTTP:`, err);
         logger.info(`[BREVO FALLBACK PRINT] Content: ${options.text}`);
       }
+      return;
     }
 
     if (env.RESEND_API_KEY) {
@@ -164,6 +165,7 @@ export class MailService {
         logger.error(`Failed to dispatch email to ${options.to} over Resend HTTP:`, err);
         logger.info(`[RESEND FALLBACK PRINT] Content: ${options.text}`);
       }
+      return;
     }
 
     if (this.transporter) {
