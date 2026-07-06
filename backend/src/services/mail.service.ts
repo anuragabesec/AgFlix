@@ -110,6 +110,7 @@ export class MailService {
         logger.info(`Email successfully dispatched to ${options.to} (SMTP)`);
       } catch (err) {
         logger.error(`Failed to dispatch email to ${options.to} over SMTP:`, err);
+        logger.info(`[SMTP FALLBACK PRINT] Content: ${options.text}`);
       }
     } else {
       // Local development print log

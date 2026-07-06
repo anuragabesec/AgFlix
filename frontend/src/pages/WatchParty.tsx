@@ -342,6 +342,8 @@ export const WatchParty: React.FC = () => {
             onPause={handlePause}
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleLoadedMetadata}
+            crossOrigin="anonymous"
+            controls
             className="w-full h-full object-contain"
           />
 

@@ -27,7 +27,7 @@ app.use(
         connectSrc: ["'self'", "ws:", "wss:", "http://localhost:5000", "http://localhost:5173", "https://api.razorpay.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
         objectSrc: ["'none'"],
-        mediaSrc: ["'self'", "data:", "blob:", "https://commondatastorage.googleapis.com"],
+        mediaSrc: ["'self'", "data:", "blob:", "http://localhost:5000", "http://127.0.0.1:5000", "https://commondatastorage.googleapis.com"],
         frameSrc: ["'self'", "https://api.razorpay.com"],
       },
     },

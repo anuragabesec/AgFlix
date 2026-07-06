@@ -113,12 +113,12 @@ export const Player: React.FC = () => {
     const video = videoRef.current;
     if (!video) return;
 
-    if (isPlaying) {
-      video.pause();
-      setIsPlaying(false);
+    if (video.paused) {
+      video.play().catch((err) => {
+        console.error("Playback error:", err);
+      });
     } else {
-      video.play().catch(() => {});
-      setIsPlaying(true);
+      video.pause();
     }
   };
 
@@ -229,6 +229,8 @@ export const Player: React.FC = () => {
         onLoadedMetadata={handleLoadedMetadata}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
+        crossOrigin="anonymous"
+        controls
         className="w-full h-full object-contain cursor-pointer"
       />
 
