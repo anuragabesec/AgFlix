@@ -44,6 +44,9 @@ export const WatchParty: React.FC = () => {
   // Sync Guard flags to prevent recursive socket echo loops
   const isSyncingRef = useRef(false);
 
+  const [reactions, setReactions] = useState<{ id: number; emoji: string; left: number }[]>([]);
+  const reactionIdRef = useRef(0);
+
   // Player controls state
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -129,6 +132,19 @@ export const WatchParty: React.FC = () => {
 
     socket.on('party-message', (payload: ChatMessage) => {
       setChatLog((prev) => [...prev, payload]);
+    });
+
+    socket.on('party-reaction', ({ emoji }) => {
+      reactionIdRef.current += 1;
+      const newReaction = {
+        id: reactionIdRef.current,
+        emoji,
+        left: Math.random() * 80 + 10,
+      };
+      setReactions((prev) => [...prev, newReaction]);
+      setTimeout(() => {
+        setReactions((prev) => prev.filter((r) => r.id !== newReaction.id));
+      }, 1500);
     });
 
     socket.on('party-play', ({ currentTime: syncTime }) => {
@@ -275,6 +291,15 @@ export const WatchParty: React.FC = () => {
     setMessage('');
   };
 
+  const sendReaction = (emoji: string) => {
+    if (!socketRef.current) return;
+    socketRef.current.emit('party-reaction', {
+      partyCode: code,
+      emoji,
+      username,
+    });
+  };
+
   const toggleFullscreen = () => {
     const container = containerRef.current;
     if (!container) return;
@@ -347,6 +372,19 @@ export const WatchParty: React.FC = () => {
             className="w-full h-full object-contain"
           />
 
+          {/* Floating Reactions overlay */}
+          <div className="absolute inset-0 pointer-events-none z-30 overflow-hidden">
+            {reactions.map((r) => (
+              <span
+                key={r.id}
+                className="absolute bottom-16 text-4xl floating-reaction"
+                style={{ left: `${r.left}%` }}
+              >
+                {r.emoji}
+              </span>
+            ))}
+          </div>
+
           {/* Simple overlay controller */}
           <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 to-transparent p-4 pt-10 flex flex-col gap-3 z-10">
             <div className="flex items-center gap-4">
@@ -415,6 +453,20 @@ export const WatchParty: React.FC = () => {
           <div ref={chatBottomRef} />
         </div>
 
+        {/* Reaction Emoji Toolbar */}
+        <div className="px-3 py-2.5 border-t border-white/5 bg-brand-surfaceMuted/50 flex justify-around items-center gap-1.5 z-10">
+          {['❤️', '😂', '👏', '😮', '🔥'].map((emoji) => (
+            <button
+              key={emoji}
+              type="button"
+              onClick={() => sendReaction(emoji)}
+              className="text-lg hover:scale-125 hover:rotate-12 active:scale-95 transition-all duration-200 cursor-pointer"
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
+
         {/* Message Input form */}
         <form onSubmit={handleSendMessage} className="h-16 border-t border-white/5 p-3 flex gap-2">
           <input
@@ -433,6 +485,17 @@ export const WatchParty: React.FC = () => {
         </form>
 
       </div>
+
+      <style>{`
+        @keyframes floatUp {
+          0% { transform: translateY(0) scale(0.6); opacity: 1; }
+          50% { opacity: 0.8; }
+          100% { transform: translateY(-200px) scale(1.3); opacity: 0; }
+        }
+        .floating-reaction {
+          animation: floatUp 1.5s forwards ease-out;
+        }
+      `}</style>
     </div>
   );
 };

@@ -132,6 +132,38 @@ export const ProfileSelect: React.FC = () => {
     }
   };
 
+  const handleKeypadClick = (num: string) => {
+    const firstEmptyIdx = pinDigits.findIndex(d => d === '');
+    if (firstEmptyIdx !== -1) {
+      const newPin = [...pinDigits];
+      newPin[firstEmptyIdx] = num;
+      setPinDigits(newPin);
+      
+      if (firstEmptyIdx === 3) {
+        handlePinSubmit(newPin);
+      } else {
+        const nextInput = document.getElementById(`pin-${firstEmptyIdx + 1}`);
+        nextInput?.focus();
+      }
+    }
+  };
+
+  const handleKeypadClear = () => {
+    setPinDigits(Array(4).fill(''));
+    document.getElementById('pin-0')?.focus();
+  };
+
+  const handleKeypadBackspace = () => {
+    const lastFilledIdx = [...pinDigits].reverse().findIndex(d => d !== '');
+    if (lastFilledIdx !== -1) {
+      const actualIdx = 3 - lastFilledIdx;
+      const newPin = [...pinDigits];
+      newPin[actualIdx] = '';
+      setPinDigits(newPin);
+      document.getElementById(`pin-${actualIdx}`)?.focus();
+    }
+  };
+
   const handleCreateProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProfile.name.trim()) return;
@@ -386,7 +418,7 @@ export const ProfileSelect: React.FC = () => {
                   </div>
                 )}
 
-                <div className="flex justify-center gap-4 mb-8">
+                <div className="flex justify-center gap-4 mb-6">
                   {pinDigits.map((digit, idx) => (
                     <input
                       key={idx}
@@ -399,6 +431,41 @@ export const ProfileSelect: React.FC = () => {
                       className="w-12 h-14 text-center text-xl font-bold rounded-lg bg-brand-surfaceMuted/50 border border-white/10 text-white outline-none focus:border-brand-secondary focus:shadow-neon-cyan transition-all duration-200"
                     />
                   ))}
+                </div>
+
+                {/* Netflix-style 3x4 numeric keypad */}
+                <div className="grid grid-cols-3 gap-2.5 max-w-[240px] mx-auto mb-6">
+                  {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((num) => (
+                    <button
+                      key={num}
+                      type="button"
+                      onClick={() => handleKeypadClick(num)}
+                      className="w-full py-2.5 rounded-lg bg-white/5 border border-white/5 hover:bg-brand-primary/10 hover:border-brand-primary/30 text-white font-bold text-lg hover:shadow-neon transition-all duration-200"
+                    >
+                      {num}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={handleKeypadClear}
+                    className="w-full py-2.5 rounded-lg bg-white/5 border border-white/5 hover:bg-brand-accent/10 hover:border-brand-accent/30 text-brand-accent font-semibold text-xs transition-all duration-200"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleKeypadClick('0')}
+                    className="w-full py-2.5 rounded-lg bg-white/5 border border-white/5 hover:bg-brand-primary/10 hover:border-brand-primary/30 text-white font-bold text-lg hover:shadow-neon transition-all duration-200"
+                  >
+                    0
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleKeypadBackspace}
+                    className="w-full py-2.5 rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 text-brand-textMuted hover:text-white font-semibold text-xs transition-all duration-200"
+                  >
+                    Delete
+                  </button>
                 </div>
 
                 <div className="flex gap-4">

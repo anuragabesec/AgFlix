@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Play, Users, ThumbsUp, Settings, Globe } from 'lucide-react';
+import { Play, Users, ThumbsUp, Settings, Globe, MessageSquare, Bot, X, Send } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import api from '../utils/api';
 import SearchBar from '../components/SearchBar';
 
@@ -52,6 +53,49 @@ export const Home: React.FC = () => {
   const [partyCode, setPartyCode] = useState<string | null>(null);
   const [partyLoading, setPartyLoading] = useState(false);
   const [joinCode, setJoinCode] = useState('');
+
+  // AI Chatbot States
+  const [showAiChat, setShowAiChat] = useState(false);
+  const [aiMessage, setAiMessage] = useState('');
+  const [aiHistory, setAiHistory] = useState<{ role: 'user' | 'model'; text: string }[]>([]);
+  const [aiLoading, setAiLoading] = useState(false);
+  const aiChatBottomRef = React.useRef<HTMLDivElement>(null);
+
+  // Auto-scroll AI chat
+  useEffect(() => {
+    if (showAiChat) {
+      aiChatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [aiHistory, showAiChat]);
+
+  const handleSendAiMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!aiMessage.trim() || aiLoading) return;
+
+    const userText = aiMessage.trim();
+    setAiMessage('');
+    setAiHistory((prev) => [...prev, { role: 'user', text: userText }]);
+    setAiLoading(true);
+
+    try {
+      const res = await api.post('/ai/chat', {
+        message: userText,
+        history: aiHistory,
+      });
+
+      if (res.data?.success) {
+        setAiHistory((prev) => [...prev, { role: 'model', text: res.data.reply }]);
+      }
+    } catch (err: any) {
+      console.error('AI chat failed:', err);
+      setAiHistory((prev) => [
+        ...prev,
+        { role: 'model', text: 'Sorry, I am having trouble connecting to my brain right now. Please try again later.' },
+      ]);
+    } finally {
+      setAiLoading(false);
+    }
+  };
 
   const activeProfileId = localStorage.getItem('agflix_active_profile_id');
 
@@ -465,11 +509,127 @@ export const Home: React.FC = () => {
               }}
               className="mt-6 text-xs text-brand-textMuted hover:text-white font-medium"
             >
-              Close
+            Close
             </button>
           </div>
         </div>
       )}
+
+      {/* Floating AI Guide Launch Bubble */}
+      <button
+        onClick={() => setShowAiChat(true)}
+        className="fixed bottom-6 right-6 p-4 rounded-full bg-brand-primary hover:bg-brand-primaryHover text-white shadow-neon hover:scale-110 active:scale-95 transition-all duration-300 z-40"
+        title="AgFlix AI Guide"
+      >
+        <Bot className="w-6 h-6 animate-pulse" />
+      </button>
+
+      {/* AI Guide Chat Drawer */}
+      <AnimatePresence>
+        {showAiChat && (
+          <motion.div
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '100%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            className="fixed top-0 right-0 w-full sm:w-[400px] h-full bg-brand-surface border-l border-white/5 shadow-2xl flex flex-col justify-between z-50 text-white"
+          >
+            {/* Header */}
+            <div className="h-16 border-b border-white/5 px-6 flex items-center justify-between bg-brand-dark/40">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-brand-primary/10 border border-brand-primary/20 text-brand-primary">
+                  <Bot className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm text-white">AgFlix AI Guide</h3>
+                  <span className="text-[10px] text-brand-secondary font-black uppercase tracking-wider">Cinematic assistant</span>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowAiChat(false)}
+                className="p-2 rounded-lg bg-white/5 border border-white/10 text-brand-textMuted hover:text-white transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Chat Log messages */}
+            <div className="flex-grow overflow-y-auto p-6 space-y-4">
+              {aiHistory.length === 0 && (
+                <div className="text-center py-8">
+                  <div className="p-4 rounded-full bg-brand-primary/5 border border-brand-primary/10 w-16 h-16 mx-auto mb-4 flex items-center justify-center text-brand-primary">
+                    <MessageSquare className="w-8 h-8" />
+                  </div>
+                  <h4 className="font-extrabold text-sm text-white mb-1">Ground Control, AI is online.</h4>
+                  <p className="text-[11px] text-brand-textMuted max-w-[240px] mx-auto leading-relaxed">
+                    Ask me to recommend movies from the catalog based on your mood, genre, or visual description!
+                  </p>
+                </div>
+              )}
+
+              {aiHistory.map((chat, idx) => {
+                const isUser = chat.role === 'user';
+                return (
+                  <div key={idx} className={`flex gap-3 ${isUser ? 'justify-end' : 'justify-start'}`}>
+                    {!isUser && (
+                      <div className="w-8 h-8 rounded-full bg-brand-primary/15 border border-brand-primary/25 flex items-center justify-center text-brand-primary text-xs flex-shrink-0">
+                        AI
+                      </div>
+                    )}
+                    <div className={`p-3.5 rounded-2xl text-xs max-w-[80%] leading-relaxed ${
+                      isUser 
+                        ? 'bg-brand-primary text-white rounded-tr-none font-medium' 
+                        : 'bg-brand-surfaceMuted border border-white/5 text-white/90 rounded-tl-none'
+                    }`}>
+                      <div 
+                        className="prose prose-invert max-w-none break-words"
+                        dangerouslySetInnerHTML={{ 
+                          __html: chat.text
+                            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                            .replace(/\[Watch (.*?)\]\((.*?)\)/g, '<a href="$2" class="underline text-brand-secondary font-black">Watch $1</a>')
+                            .replace(/\n/g, '<br/>')
+                        }} 
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+
+              {aiLoading && (
+                <div className="flex gap-3 justify-start">
+                  <div className="w-8 h-8 rounded-full bg-brand-primary/15 border border-brand-primary/25 flex items-center justify-center text-brand-primary text-xs flex-shrink-0">
+                    AI
+                  </div>
+                  <div className="p-3.5 rounded-2xl bg-brand-surfaceMuted border border-white/5 text-brand-textMuted text-xs rounded-tl-none flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 bg-brand-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-1.5 h-1.5 bg-brand-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-1.5 h-1.5 bg-brand-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </div>
+                </div>
+              )}
+              <div ref={aiChatBottomRef} />
+            </div>
+
+            {/* Message Input form */}
+            <form onSubmit={handleSendAiMessage} className="h-20 border-t border-white/5 p-4 flex gap-2.5 bg-brand-dark/20 z-10">
+              <input
+                type="text"
+                placeholder="Ask AgFlix AI Guide..."
+                value={aiMessage}
+                onChange={(e) => setAiMessage(e.target.value)}
+                className="flex-grow rounded-xl bg-brand-surfaceMuted border border-white/5 px-4 text-xs outline-none text-white focus:border-brand-primary transition-colors"
+              />
+              <button
+                type="submit"
+                disabled={aiLoading}
+                className="p-3.5 rounded-xl bg-brand-primary hover:bg-brand-primaryHover disabled:opacity-50 text-white transition-colors flex items-center justify-center shadow-neon"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </form>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
