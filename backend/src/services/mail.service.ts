@@ -98,6 +98,44 @@ export class MailService {
   }
 
   private async sendMail(options: { to: string; subject: string; text: string; html: string }): Promise<void> {
+    if (env.BREVO_API_KEY) {
+      try {
+        const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+          method: 'POST',
+          headers: {
+            'api-key': env.BREVO_API_KEY,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify({
+            sender: {
+              name: 'AgFlix',
+              email: 'anurag.abesec@gmail.com',
+            },
+            to: [
+              {
+                email: options.to,
+              },
+            ],
+            subject: options.subject,
+            htmlContent: options.html,
+            textContent: options.text,
+          }),
+        });
+
+        if (!response.ok) {
+          const errText = await response.text();
+          throw new Error(`Brevo API returned status ${response.status}: ${errText}`);
+        }
+
+        logger.info(`Email successfully dispatched to ${options.to} (Brevo HTTP)`);
+        return;
+      } catch (err) {
+        logger.error(`Failed to dispatch email to ${options.to} over Brevo HTTP:`, err);
+        logger.info(`[BREVO FALLBACK PRINT] Content: ${options.text}`);
+      }
+    }
+
     if (env.RESEND_API_KEY) {
       try {
         const response = await fetch('https://api.resend.com/emails', {

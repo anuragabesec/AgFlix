@@ -34,6 +34,9 @@ const environmentSchema = z.object({
   
   // Resend API
   RESEND_API_KEY: z.string().optional().or(z.literal('')),
+  
+  // Brevo API
+  BREVO_API_KEY: z.string().optional().or(z.literal('')),
 });
 
 export type Environment = z.infer<typeof environmentSchema>;
