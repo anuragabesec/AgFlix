@@ -98,6 +98,36 @@ export class MailService {
   }
 
   private async sendMail(options: { to: string; subject: string; text: string; html: string }): Promise<void> {
+    if (env.PLUNK_API_KEY) {
+      try {
+        const response = await fetch('https://api.useplunk.com/v1/send', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${env.PLUNK_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            to: options.to,
+            subject: options.subject,
+            body: options.html || options.text,
+            subscribed: true,
+          }),
+        });
+
+        if (!response.ok) {
+          const errText = await response.text();
+          throw new Error(`Plunk API returned status ${response.status}: ${errText}`);
+        }
+
+        logger.info(`Email successfully dispatched to ${options.to} (Plunk HTTP)`);
+        return;
+      } catch (err) {
+        logger.error(`Failed to dispatch email to ${options.to} over Plunk HTTP:`, err);
+        logger.info(`[PLUNK FALLBACK PRINT] Content: ${options.text}`);
+      }
+      return;
+    }
+
     if (env.BREVO_API_KEY) {
       try {
         const response = await fetch('https://api.brevo.com/v3/smtp/email', {

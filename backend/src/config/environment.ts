@@ -37,6 +37,9 @@ const environmentSchema = z.object({
   
   // Brevo API
   BREVO_API_KEY: z.string().optional().or(z.literal('')),
+  
+  // Plunk API
+  PLUNK_API_KEY: z.string().optional().or(z.literal('')),
 });
 
 export type Environment = z.infer<typeof environmentSchema>;
