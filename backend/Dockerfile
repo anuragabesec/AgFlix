@@ -12,6 +12,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --only=production
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/uploads ./uploads
 
 # Create uploads storage directories inside container
 RUN mkdir -p uploads/videos uploads/posters uploads/thumbnails
