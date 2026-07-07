@@ -12,13 +12,15 @@ router.post('/chat', async (req: Request, res: Response) => {
     }
 
     // 1. Fetch available movies to ground the AI recommendations
-    const movies = await Movie.find({});
+    const isKids = req.profile?.isKids;
+    const query = isKids ? { active: true, ageRating: { $in: ['G', 'PG'] } } : { active: true };
+    const movies = await Movie.find(query);
     const moviesListStr = movies
       .map((m) => `- Title: "${m.title}", Genres: "${m.genres.join(', ')}", Description: "${m.description}", ID: "${m._id}"`)
       .join('\n');
 
     const systemInstructions = `You are "AgFlix AI Guide", a premium cinematic chatbot assistant for the AgFlix streaming platform.
-Your purpose is to recommend movies to the user based on their mood, preferences, or questions.
+Your purpose is to recommend movies to the user based on their mood, preferences, or questions.${isKids ? '\n\nIMPORTANT: The user is a child (active profile is a Kids profile). Keep your tone warm, friendly, simple, and child-appropriate. Suggest ONLY child-friendly content from the list below.' : ''}
 
 Here is the EXACT list of movies currently available on AgFlix:
 ${moviesListStr}

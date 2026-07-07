@@ -82,6 +82,18 @@ export class SocketService {
         logger.debug(`[Reaction] Party ${partyCode} emoji from ${username}: ${emoji}`);
       });
 
+      // 5.6 Watch Party real-time canvas drawings/laser pointer
+      socket.on('party-draw', ({ partyCode, x, y, isDrawing, color, username }) => {
+        const roomName = `party_${partyCode.toUpperCase()}`;
+        socket.to(roomName).emit('party-draw', {
+          x,
+          y,
+          isDrawing,
+          color,
+          username,
+        });
+      });
+
       // 6. Leave room explicitly
       socket.on('leave-party', ({ partyCode, username, userId }) => {
         const roomName = `party_${partyCode.toUpperCase()}`;

@@ -44,8 +44,13 @@ router.get('/', movieController.getMovies);
 router.get('/trending', movieController.getTrending);
 router.get('/originals', movieController.getOriginals);
 router.get('/featured', movieController.getFeatured);
+router.get('/continue-watching', movieController.getContinueWatching);
+router.get('/my-list', movieController.getMyList);
 router.get('/:id', movieController.getMovieById);
 router.post('/:id/like', movieController.likeMovie);
+router.post('/:id/progress', movieController.saveProgress);
+router.post('/:id/watchlist', movieController.toggleWatchlist);
+router.post('/:id/favorite', movieController.toggleFavorite);
 
 // Watch Party routes
 router.post('/watch-party', movieController.createWatchParty);
