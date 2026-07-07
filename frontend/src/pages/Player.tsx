@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Play, Pause, Volume2, VolumeX, Maximize, ArrowLeft, RotateCcw, FastForward, Loader2 } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX, Maximize, ArrowLeft, RotateCcw, FastForward, Loader2, Globe } from 'lucide-react';
 import Hls from 'hls.js';
 import api from '../utils/api';
 
@@ -9,6 +9,27 @@ interface Movie {
   title: string;
   videoUrl: string;
 }
+
+const SUBTITLE_CUES = [
+  { start: 1, end: 4, text: "[Calm ambient music playing]" },
+  { start: 5, end: 10, text: "Welcome to the deep blue oceans of AgFlix." },
+  { start: 12, end: 18, text: "A home to beautiful, mysterious, and majestic marine life." },
+  { start: 20, end: 26, text: "Witness the harmony of currents and creatures." },
+  { start: 28, end: 35, text: "AgFlix Cinematic Experience - Streaming without limits." }
+];
+
+const fontSizeClasses = {
+  sm: 'text-xs md:text-sm',
+  md: 'text-sm md:text-lg',
+  lg: 'text-lg md:text-2xl',
+  xl: 'text-2xl md:text-4xl',
+};
+
+const colorClasses = {
+  white: 'text-white',
+  yellow: 'text-yellow-400',
+  cyan: 'text-cyan-400',
+};
 
 export const Player: React.FC = () => {
   const { id } = useParams();
@@ -20,6 +41,15 @@ export const Player: React.FC = () => {
   const [movie, setMovie] = useState<Movie | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Resume progress and Subtitles States
+  const [resumeTime, setResumeTime] = useState(0);
+  const [subtitlesEnabled, setSubtitlesEnabled] = useState(true);
+  const [subtitleText, setSubtitleText] = useState('');
+  const [subtitleFontSize, setSubtitleFontSize] = useState<'sm' | 'md' | 'lg' | 'xl'>('md');
+  const [subtitleColor, setSubtitleColor] = useState<'white' | 'yellow' | 'cyan'>('white');
+  const [subtitleBgOpacity, setSubtitleBgOpacity] = useState<number>(0.5);
+  const [showCcSettings, setShowCcSettings] = useState(false);
 
   // Custom Controls States
   const [isPlaying, setIsPlaying] = useState(false);
@@ -39,6 +69,7 @@ export const Player: React.FC = () => {
         const res = await api.get(`/movies/${id}`);
         if (res.data?.success) {
           setMovie(res.data.movie);
+          setResumeTime(res.data.resumeTime || 0);
         }
       } catch (err: any) {
         setError(err.response?.data?.message || 'Failed to load movie stream.');
@@ -109,6 +140,40 @@ export const Player: React.FC = () => {
     };
   }, [isPlaying]);
 
+  // Progress synchronization background hook
+  useEffect(() => {
+    if (!isPlaying || !movie) return;
+
+    const interval = setInterval(async () => {
+      if (videoRef.current) {
+        try {
+          await api.post(`/movies/${movie._id}/progress`, {
+            currentTime: Math.floor(videoRef.current.currentTime),
+            duration: Math.floor(videoRef.current.duration),
+          });
+        } catch (err) {}
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [isPlaying, movie]);
+
+  const handlePlay = () => {
+    setIsPlaying(true);
+  };
+
+  const handlePause = async () => {
+    setIsPlaying(false);
+    if (videoRef.current && movie) {
+      try {
+        await api.post(`/movies/${movie._id}/progress`, {
+          currentTime: Math.floor(videoRef.current.currentTime),
+          duration: Math.floor(videoRef.current.duration),
+        });
+      } catch (err) {}
+    }
+  };
+
   const togglePlay = () => {
     const video = videoRef.current;
     if (!video) return;
@@ -124,13 +189,20 @@ export const Player: React.FC = () => {
 
   const handleTimeUpdate = () => {
     if (videoRef.current) {
-      setCurrentTime(videoRef.current.currentTime);
+      const time = videoRef.current.currentTime;
+      setCurrentTime(time);
+      
+      const activeCue = SUBTITLE_CUES.find(cue => time >= cue.start && time <= cue.end);
+      setSubtitleText(activeCue ? activeCue.text : '');
     }
   };
 
   const handleLoadedMetadata = () => {
     if (videoRef.current) {
       setDuration(videoRef.current.duration);
+      if (resumeTime > 0) {
+        videoRef.current.currentTime = resumeTime;
+      }
     }
   };
 
@@ -225,14 +297,25 @@ export const Player: React.FC = () => {
       <video
         ref={videoRef}
         onClick={togglePlay}
+        onPlay={handlePlay}
+        onPause={handlePause}
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
-        onPlay={() => setIsPlaying(true)}
-        onPause={() => setIsPlaying(false)}
         crossOrigin="anonymous"
-        controls
         className="w-full h-full object-contain cursor-pointer"
       />
+
+      {/* Subtitles Text Overlay */}
+      {subtitlesEnabled && subtitleText && (
+        <div className="absolute bottom-24 inset-x-0 flex justify-center pointer-events-none z-30">
+          <div 
+            className={`px-4 py-2 rounded-lg font-bold text-center filter drop-shadow-md select-none transition-all duration-200 ${fontSizeClasses[subtitleFontSize]} ${colorClasses[subtitleColor]}`}
+            style={{ backgroundColor: `rgba(0, 0, 0, ${subtitleBgOpacity})` }}
+          >
+            {subtitleText}
+          </div>
+        </div>
+      )}
 
       {/* CUSTOM OVERLAY CONTROLS */}
       <div className={`absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/60 flex flex-col justify-between p-6 z-10 transition-opacity duration-300 ${
@@ -334,6 +417,80 @@ export const Player: React.FC = () => {
                   </button>
                 ))}
               </div>
+
+              {/* CC Settings Popover */}
+              {showCcSettings && (
+                <div className="absolute bottom-20 right-4 p-4 rounded-xl bg-brand-surface border border-white/10 shadow-2xl space-y-3 z-40 text-xs w-64 text-white">
+                  <h4 className="font-extrabold uppercase tracking-wide text-[10px] text-brand-secondary font-black">Subtitle Styling</h4>
+                  
+                  <div className="flex justify-between items-center py-1">
+                    <span>Show Subtitles</span>
+                    <button 
+                      type="button"
+                      onClick={() => setSubtitlesEnabled(!subtitlesEnabled)}
+                      className={`px-3 py-1 rounded font-bold uppercase text-[10px] ${subtitlesEnabled ? 'bg-brand-primary text-white' : 'bg-white/5 border border-white/10 text-brand-textMuted'}`}
+                    >
+                      {subtitlesEnabled ? 'ON' : 'OFF'}
+                    </button>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] uppercase font-bold text-brand-textMuted">Size</span>
+                    <div className="flex gap-1 bg-white/5 p-0.5 rounded border border-white/5">
+                      {(['sm', 'md', 'lg', 'xl'] as const).map((sz) => (
+                        <button
+                          key={sz}
+                          type="button"
+                          onClick={() => setSubtitleFontSize(sz)}
+                          className={`flex-1 py-1 rounded text-[10px] font-bold uppercase transition-colors ${subtitleFontSize === sz ? 'bg-brand-primary text-white' : 'text-white/60 hover:text-white'}`}
+                        >
+                          {sz}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] uppercase font-bold text-brand-textMuted">Color</span>
+                    <div className="flex gap-1 bg-white/5 p-0.5 rounded border border-white/5">
+                      {(['white', 'yellow', 'cyan'] as const).map((col) => (
+                        <button
+                          key={col}
+                          type="button"
+                          onClick={() => setSubtitleColor(col)}
+                          className={`flex-1 py-1 rounded text-[10px] font-bold uppercase transition-colors ${subtitleColor === col ? 'bg-brand-primary text-white' : 'text-white/60 hover:text-white'}`}
+                        >
+                          {col}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between text-[10px] uppercase font-bold text-brand-textMuted">
+                      <span>Background Opacity</span>
+                      <span>{Math.round(subtitleBgOpacity * 100)}%</span>
+                    </div>
+                    <input 
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.25}
+                      value={subtitleBgOpacity}
+                      onChange={(e) => setSubtitleBgOpacity(parseFloat(e.target.value))}
+                      className="w-full accent-brand-secondary h-1 bg-white/20 rounded cursor-pointer"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <button
+                onClick={() => setShowCcSettings(!showCcSettings)}
+                className={`p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 transition-colors flex items-center justify-center ${showCcSettings ? 'text-brand-secondary border-brand-secondary/30 bg-brand-secondary/5' : 'text-white/80 hover:text-white'}`}
+                title="Subtitle Settings (CC)"
+              >
+                <Globe className="w-5 h-5" />
+              </button>
 
               <button
                 onClick={toggleFullscreen}

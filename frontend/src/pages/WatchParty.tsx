@@ -47,6 +47,13 @@ export const WatchParty: React.FC = () => {
   const [reactions, setReactions] = useState<{ id: number; emoji: string; left: number }[]>([]);
   const reactionIdRef = useRef(0);
 
+  // Laser Pointer Drawing States/Refs
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [laserTool, setLaserTool] = useState(false);
+  const [laserColor, setLaserColor] = useState('#00F0FF');
+  const isDrawingRef = useRef(false);
+  const drawPointsRef = useRef<{ x: number; y: number; timestamp: number; color: string; isNewStroke?: boolean }[]>([]);
+
   // Player controls state
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -145,6 +152,16 @@ export const WatchParty: React.FC = () => {
       setTimeout(() => {
         setReactions((prev) => prev.filter((r) => r.id !== newReaction.id));
       }, 1500);
+    });
+
+    socket.on('party-draw', ({ x, y, isDrawing, color }) => {
+      drawPointsRef.current.push({
+        x,
+        y,
+        timestamp: Date.now(),
+        color,
+        isNewStroke: !isDrawing,
+      });
     });
 
     socket.on('party-play', ({ currentTime: syncTime }) => {
@@ -300,6 +317,99 @@ export const WatchParty: React.FC = () => {
     });
   };
 
+  // Real-time canvas drawing loop
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let animationFrameId: number;
+
+    const drawLoop = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const now = Date.now();
+      drawPointsRef.current = drawPointsRef.current.filter((p) => now - p.timestamp < 1000);
+
+      if (drawPointsRef.current.length > 1) {
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        for (let i = 1; i < drawPointsRef.current.length; i++) {
+          const p1 = drawPointsRef.current[i - 1];
+          const p2 = drawPointsRef.current[i];
+
+          if (p2.isNewStroke) continue;
+
+          const age = now - p2.timestamp;
+          const opacity = Math.max(0, 1 - age / 1000);
+
+          ctx.beginPath();
+          ctx.moveTo(p1.x * canvas.width, p1.y * canvas.height);
+          ctx.lineTo(p2.x * canvas.width, p2.y * canvas.height);
+
+          ctx.strokeStyle = p2.color;
+          ctx.shadowColor = p2.color;
+          ctx.shadowBlur = 8;
+          ctx.lineWidth = 4;
+          ctx.globalAlpha = opacity;
+          ctx.stroke();
+        }
+      }
+
+      animationFrameId = requestAnimationFrame(drawLoop);
+    };
+
+    drawLoop();
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, []);
+
+  const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!laserTool || !socketRef.current || !canvasRef.current) return;
+    isDrawingRef.current = true;
+
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+
+    drawPointsRef.current.push({ x, y, timestamp: Date.now(), color: laserColor, isNewStroke: true });
+
+    socketRef.current.emit('party-draw', {
+      partyCode: code,
+      x,
+      y,
+      isDrawing: false,
+      color: laserColor,
+      username,
+    });
+  };
+
+  const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!laserTool || !isDrawingRef.current || !socketRef.current || !canvasRef.current) return;
+
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+
+    drawPointsRef.current.push({ x, y, timestamp: Date.now(), color: laserColor });
+
+    socketRef.current.emit('party-draw', {
+      partyCode: code,
+      x,
+      y,
+      isDrawing: true,
+      color: laserColor,
+      username,
+    });
+  };
+
+  const handleCanvasMouseUp = () => {
+    isDrawingRef.current = false;
+  };
+
   const toggleFullscreen = () => {
     const container = containerRef.current;
     if (!container) return;
@@ -368,8 +478,19 @@ export const WatchParty: React.FC = () => {
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleLoadedMetadata}
             crossOrigin="anonymous"
-            controls
             className="w-full h-full object-contain"
+          />
+
+          {/* Laser Drawing Canvas Overlay */}
+          <canvas
+            ref={canvasRef}
+            onMouseDown={handleCanvasMouseDown}
+            onMouseMove={handleCanvasMouseMove}
+            onMouseUp={handleCanvasMouseUp}
+            onMouseLeave={handleCanvasMouseUp}
+            className={`absolute inset-0 w-full h-full z-20 ${laserTool ? 'cursor-crosshair pointer-events-auto' : 'pointer-events-none'}`}
+            width={800}
+            height={450}
           />
 
           {/* Floating Reactions overlay */}
@@ -401,9 +522,32 @@ export const WatchParty: React.FC = () => {
             </div>
 
             <div className="flex justify-between items-center text-white/80">
-              <button onClick={togglePlay} className="hover:text-white transition-colors">
-                {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current" />}
-              </button>
+              <div className="flex items-center gap-3">
+                <button onClick={togglePlay} className="hover:text-white transition-colors">
+                  {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current" />}
+                </button>
+                
+                <button 
+                  onClick={() => setLaserTool(!laserTool)} 
+                  className={`px-3 py-1 rounded-md text-xs font-bold transition-all border ${laserTool ? 'bg-brand-secondary border-brand-secondary/30 text-brand-dark font-black shadow-neon-cyan' : 'bg-white/5 border-white/10 hover:text-white'}`}
+                  title="Laser Pointer Draw Tool"
+                >
+                  ✏️ {laserTool ? 'Laser ON' : 'Laser'}
+                </button>
+                
+                {laserTool && (
+                  <div className="flex gap-1.5 items-center">
+                    {['#00F0FF', '#FF007F', '#FFFF00'].map((c) => (
+                      <button
+                        key={c}
+                        onClick={() => setLaserColor(c)}
+                        className={`w-3.5 h-3.5 rounded-full border transition-all ${laserColor === c ? 'border-white scale-110' : 'border-transparent opacity-70 hover:opacity-100'}`}
+                        style={{ backgroundColor: c }}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
 
               <button onClick={toggleFullscreen} className="hover:text-white transition-colors">
                 <Maximize className="w-5 h-5" />

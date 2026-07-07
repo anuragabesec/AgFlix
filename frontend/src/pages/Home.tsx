@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Play, Users, ThumbsUp, Settings, Globe, MessageSquare, Bot, X, Send } from 'lucide-react';
+import { Play, Users, ThumbsUp, Settings, Globe, MessageSquare, Bot, X, Send, Plus, Heart } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../utils/api';
 import SearchBar from '../components/SearchBar';
@@ -60,6 +60,11 @@ export const Home: React.FC = () => {
   const [aiHistory, setAiHistory] = useState<{ role: 'user' | 'model'; text: string }[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
   const aiChatBottomRef = React.useRef<HTMLDivElement>(null);
+
+  // Watchlist & Favorites & Playback Progress States
+  const [watchlist, setWatchlist] = useState<Movie[]>([]);
+  const [favorites, setFavorites] = useState<Movie[]>([]);
+  const [continueWatching, setContinueWatching] = useState<{ id: string; currentTime: number; duration: number; movie: Movie }[]>([]);
 
   // Auto-scroll AI chat
   useEffect(() => {
@@ -146,6 +151,19 @@ export const Home: React.FC = () => {
           setOriginals(moviesList.filter((m) => m.isOriginal));
           setTrending(moviesList.filter((m) => m.isTrending));
         }
+
+        // Fetch watchlist & favorites
+        const myListRes = await api.get('/movies/my-list');
+        if (myListRes.data?.success) {
+          setWatchlist(myListRes.data.watchlist || []);
+          setFavorites(myListRes.data.favorites || []);
+        }
+
+        // Fetch continue watching progress
+        const continueRes = await api.get('/movies/continue-watching');
+        if (continueRes.data?.success) {
+          setContinueWatching(continueRes.data.progress || []);
+        }
       } catch (err: any) {
         setError('Failed to fetch media catalog. Please try again.');
       } finally {
@@ -155,6 +173,34 @@ export const Home: React.FC = () => {
 
     loadHomeData();
   }, [activeProfileId, navigate]);
+
+  const handleToggleWatchlist = async (movieId: string) => {
+    try {
+      const res = await api.post(`/movies/${movieId}/watchlist`);
+      if (res.data?.success) {
+        const myListRes = await api.get('/movies/my-list');
+        if (myListRes.data?.success) {
+          setWatchlist(myListRes.data.watchlist || []);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to toggle watchlist:', err);
+    }
+  };
+
+  const handleToggleFavorite = async (movieId: string) => {
+    try {
+      const res = await api.post(`/movies/${movieId}/favorite`);
+      if (res.data?.success) {
+        const myListRes = await api.get('/movies/my-list');
+        if (myListRes.data?.success) {
+          setFavorites(myListRes.data.favorites || []);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to toggle favorite:', err);
+    }
+  };
 
   const handleSearch = async (query: string) => {
     setSearchQuery(query);
@@ -243,9 +289,13 @@ export const Home: React.FC = () => {
         <div className="flex items-center gap-10">
           <span 
             onClick={() => navigate('/')}
-            className="text-3xl font-black tracking-wider bg-gradient-to-r from-brand-primary via-brand-secondary to-brand-accent bg-clip-text text-transparent cursor-pointer"
+            className={`text-3xl font-black tracking-wider bg-clip-text text-transparent cursor-pointer bg-gradient-to-r ${
+              profile?.isKids 
+                ? 'from-amber-400 via-orange-500 to-yellow-300' 
+                : 'from-brand-primary via-brand-secondary to-brand-accent'
+            }`}
           >
-            AgFlix
+            AgFlix {profile?.isKids && 'Kids 🎈'}
           </span>
           <nav className="hidden md:flex gap-6 text-sm font-bold text-brand-textMuted">
             <span className="text-white cursor-pointer" onClick={() => handleSearch('')}>Home</span>
@@ -431,14 +481,76 @@ export const Home: React.FC = () => {
 
           {/* CATALOG ROWS */}
           <div className="px-8 md:px-16 mt-6 space-y-12">
+            {/* ROW 0: CONTINUE WATCHING */}
+            {continueWatching.length > 0 && (
+              <div className="space-y-4">
+                <h2 className="text-xl md:text-2xl font-black tracking-wide text-brand-secondary">Continue Watching</h2>
+                <div className="flex gap-5 overflow-x-auto pb-4 scrollbar-hide scroll-smooth">
+                  {continueWatching.map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex-shrink-0 w-64 rounded-xl overflow-hidden glass-card border border-white/5 group hover:border-brand-primary/40 transition-all duration-300 relative"
+                    >
+                      <div className="relative h-36 w-full overflow-hidden">
+                        <img
+                          src={item.movie.thumbnail}
+                          alt={item.movie.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                        <div className="absolute inset-0 bg-brand-dark/50 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-3 transition-opacity duration-300 z-10">
+                          <button
+                            onClick={() => navigate(`/watch/${item.movie._id}`)}
+                            className="p-3 rounded-full bg-white text-brand-dark hover:scale-110 transition-transform"
+                            title="Resume Watching"
+                          >
+                            <Play className="w-4 h-4 fill-current" />
+                          </button>
+                        </div>
+                        <div className="absolute bottom-0 inset-x-0 h-1 bg-white/20">
+                          <div 
+                            className="h-full bg-brand-secondary shadow-neon-cyan transition-all duration-300"
+                            style={{ width: `${(item.currentTime / item.duration) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="p-4">
+                        <h4 className="font-bold text-sm truncate text-white">{item.movie.title}</h4>
+                        <span className="text-[10px] text-brand-textMuted mt-1 block">
+                          Resumes at {Math.floor(item.currentTime / 60)}m {item.currentTime % 60}s
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ROW 0.5: MY WATCHLIST */}
+            {watchlist.length > 0 && (
+              <MovieRow
+                title="My Watchlist"
+                movies={watchlist}
+                watchlistIds={watchlist.map(m => m._id)}
+                favoritesIds={favorites.map(m => m._id)}
+                onPlay={(id) => navigate(`/watch/${id}`)}
+                onHostParty={handleCreateWatchParty}
+                onToggleWatchlist={handleToggleWatchlist}
+                onToggleFavorite={handleToggleFavorite}
+              />
+            )}
+
             {/* ROW 1: ORIGINALS */}
             {originals.length > 0 && (
               <MovieRow
                 title="AgFlix Original Series"
                 movies={originals}
+                watchlistIds={watchlist.map(m => m._id)}
+                favoritesIds={favorites.map(m => m._id)}
                 onPlay={(id) => navigate(`/watch/${id}`)}
                 onHostParty={handleCreateWatchParty}
-                onLike={handleLikeMovie}
+                onToggleWatchlist={handleToggleWatchlist}
+                onToggleFavorite={handleToggleFavorite}
               />
             )}
 
@@ -447,9 +559,12 @@ export const Home: React.FC = () => {
               <MovieRow
                 title="Trending Now"
                 movies={trending}
+                watchlistIds={watchlist.map(m => m._id)}
+                favoritesIds={favorites.map(m => m._id)}
                 onPlay={(id) => navigate(`/watch/${id}`)}
                 onHostParty={handleCreateWatchParty}
-                onLike={handleLikeMovie}
+                onToggleWatchlist={handleToggleWatchlist}
+                onToggleFavorite={handleToggleFavorite}
               />
             )}
 
@@ -458,9 +573,12 @@ export const Home: React.FC = () => {
               <MovieRow
                 title="Popular Releases"
                 movies={allMovies}
+                watchlistIds={watchlist.map(m => m._id)}
+                favoritesIds={favorites.map(m => m._id)}
                 onPlay={(id) => navigate(`/watch/${id}`)}
                 onHostParty={handleCreateWatchParty}
-                onLike={handleLikeMovie}
+                onToggleWatchlist={handleToggleWatchlist}
+                onToggleFavorite={handleToggleFavorite}
               />
             )}
           </div>
@@ -638,12 +756,15 @@ export const Home: React.FC = () => {
 interface MovieRowProps {
   title: string;
   movies: Movie[];
+  watchlistIds?: string[];
+  favoritesIds?: string[];
   onPlay: (id: string) => void;
   onHostParty: (movie: Movie) => void;
-  onLike: (id: string) => void;
+  onToggleWatchlist?: (id: string) => void;
+  onToggleFavorite?: (id: string) => void;
 }
 
-const MovieRow: React.FC<MovieRowProps> = ({ title, movies, onPlay, onHostParty, onLike }) => {
+const MovieRow: React.FC<MovieRowProps> = ({ title, movies, watchlistIds, favoritesIds, onPlay, onHostParty, onToggleWatchlist, onToggleFavorite }) => {
   return (
     <div className="space-y-4">
       <h2 className="text-xl md:text-2xl font-black tracking-wide">{title}</h2>
@@ -659,27 +780,38 @@ const MovieRow: React.FC<MovieRowProps> = ({ title, movies, onPlay, onHostParty,
                 alt={movie.title}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
               />
-              <div className="absolute inset-0 bg-brand-dark/50 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-3 transition-opacity duration-300 z-10">
+              <div className="absolute inset-0 bg-brand-dark/50 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2.5 transition-opacity duration-300 z-10">
                 <button
                   onClick={() => onPlay(movie._id)}
-                  className="p-3 rounded-full bg-white text-brand-dark hover:scale-110 transition-transform"
+                  className="p-2.5 rounded-full bg-white text-brand-dark hover:scale-110 transition-transform"
                   title="Play"
                 >
                   <Play className="w-4 h-4 fill-current" />
                 </button>
                 <button
                   onClick={() => onHostParty(movie)}
-                  className="p-3 rounded-full bg-brand-primary text-white hover:scale-110 transition-transform shadow-neon"
+                  className="p-2.5 rounded-full bg-brand-primary text-white hover:scale-110 transition-transform shadow-neon"
                   title="Party"
                 >
                   <Users className="w-4 h-4" />
                 </button>
                 <button
-                  onClick={() => onLike(movie._id)}
-                  className="p-3 rounded-full bg-brand-surface border border-white/10 hover:scale-110 transition-transform text-white"
-                  title="Like"
+                  onClick={() => onToggleWatchlist?.(movie._id)}
+                  className={`p-2.5 rounded-full bg-brand-surface border transition-transform hover:scale-110 ${
+                    watchlistIds?.includes(movie._id) ? 'text-brand-secondary border-brand-secondary/30' : 'text-white border-white/10'
+                  }`}
+                  title={watchlistIds?.includes(movie._id) ? 'Remove from List' : 'Add to List'}
                 >
-                  <ThumbsUp className="w-4 h-4" />
+                  <Plus className={`w-4 h-4 ${watchlistIds?.includes(movie._id) ? 'rotate-45 text-brand-secondary' : ''} transition-transform`} />
+                </button>
+                <button
+                  onClick={() => onToggleFavorite?.(movie._id)}
+                  className={`p-2.5 rounded-full bg-brand-surface border transition-transform hover:scale-110 ${
+                    favoritesIds?.includes(movie._id) ? 'text-brand-accent border-brand-accent/30' : 'text-white border-white/10'
+                  }`}
+                  title={favoritesIds?.includes(movie._id) ? 'Remove Favorite' : 'Mark Favorite'}
+                >
+                  <Heart className={`w-4 h-4 ${favoritesIds?.includes(movie._id) ? 'fill-brand-accent text-brand-accent' : ''} transition-all`} />
                 </button>
               </div>
             </div>
