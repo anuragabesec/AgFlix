@@ -111,4 +111,81 @@ router.get('/wipe-atlas-now-securely', async (req: any, res: any) => {
   }
 });
 
+// Secure Password-Protected Database Seeding Route (For Seeding Movies on Atlas Cloud)
+router.get('/seed-atlas-clips-now-securely', async (req: any, res: any) => {
+  const { secret } = req.query;
+  if (secret !== 'Anurag1602') {
+    return res.status(403).json({ success: false, error: 'Unauthorized' });
+  }
+  try {
+    const MovieModel = require('../models/movie.model').default;
+    const clips = [
+      {
+        title: 'Dhruandar',
+        description: 'A fearless man stands against injustice, fighting to protect his homeland in this high-octane action drama.',
+        releaseYear: 2024,
+        genres: ['Action', 'Drama'],
+        ageRating: 'PG-13',
+        duration: 142,
+        thumbnail: 'https://agflix.onrender.com/uploads/thumbnails/dhruandar_thumbnail.png',
+        poster: 'https://agflix.onrender.com/uploads/posters/dhruandar_poster.png',
+        videoUrl: 'https://vjs.zencdn.net/v/oceans.mp4',
+        cast: ['Dhruva', 'Sanjay Dutt', 'Raveena Tandon'],
+        isOriginal: false,
+        isTrending: true,
+        featured: false,
+        active: true,
+      },
+      {
+        title: 'Panchayat',
+        description: 'An engineering graduate joins as a secretary of a Panchayat office in a remote village of Phulera due to lack of better job options.',
+        releaseYear: 2020,
+        genres: ['Comedy', 'Drama'],
+        ageRating: 'G',
+        duration: 35,
+        thumbnail: 'https://agflix.onrender.com/uploads/thumbnails/panchayat_thumbnail.png',
+        poster: 'https://agflix.onrender.com/uploads/posters/panchayat_poster.png',
+        videoUrl: 'https://vjs.zencdn.net/v/oceans.mp4',
+        cast: ['Jitendra Kumar', 'Raghubir Yadav', 'Neena Gupta'],
+        isOriginal: true,
+        isTrending: true,
+        featured: false,
+        active: true,
+      },
+      {
+        title: 'Border 2',
+        description: 'A heroic military company faces overwhelming odds on the battlefield, defending their nation with utmost valor and sacrifice in this epic sequel.',
+        releaseYear: 2026,
+        genres: ['Action', 'Drama'],
+        ageRating: 'PG-13',
+        duration: 165,
+        thumbnail: 'https://agflix.onrender.com/uploads/thumbnails/border2_thumbnail.png',
+        poster: 'https://agflix.onrender.com/uploads/posters/border2_poster.png',
+        videoUrl: 'https://vjs.zencdn.net/v/oceans.mp4',
+        cast: ['Sunny Deol', 'Varun Dhawan', 'Ayushmann Khurrana'],
+        isOriginal: true,
+        isTrending: true,
+        featured: true,
+        active: true,
+      },
+    ];
+
+    const results: string[] = [];
+    for (const clip of clips) {
+      const exists = await MovieModel.findOne({ title: clip.title });
+      if (exists) {
+        Object.assign(exists, clip);
+        await exists.save();
+        results.push(`Updated ${clip.title}`);
+      } else {
+        await MovieModel.create(clip);
+        results.push(`Created ${clip.title}`);
+      }
+    }
+    res.status(200).json({ success: true, message: 'Cloud database seeded successfully!', results });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 export default router;
