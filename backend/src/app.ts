@@ -33,6 +33,7 @@ app.use(
         frameSrc: ["'self'", "https://api.razorpay.com"],
       },
     },
+    crossOriginResourcePolicy: { policy: "cross-origin" },
   })
 );
 
